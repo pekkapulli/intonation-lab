@@ -21,7 +21,7 @@
 <div class="page-shell">
 	<header class="topbar">
 		<div>
-			<h1>Intonation lab</h1>
+			<h1>The Sine Quartet</h1>
 		</div>
 
 		<div class="tuning-panel" aria-label="A4 tuning configuration">
