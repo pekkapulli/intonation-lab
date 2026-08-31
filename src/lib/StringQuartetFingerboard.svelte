@@ -15,6 +15,12 @@
 	const synth = createSynth({ waveform: 'sine', volume: 0.3, reverbMix: 0 });
 	$effect(() => {
 		synth.setOptions({ a4 });
+		if (activeStringIndex !== null && activePositionRatio !== null) {
+			const stringPitch = instrument.strings[activeStringIndex];
+			const rawFrequency = getStringFrequencyAtFret(stringPitch.midi, 0, 1, a4);
+			const updatedFrequency = rawFrequency / Math.max(1 - activePositionRatio, 0.00001);
+			currentFrequency = updatedFrequency;
+		}
 	});
 	const boardPadding = { left: 56, right: 18, top: 18, bottom: 18 };
 	const importantFrets = new Set([0, 3, 5, 7, 9, 12, 14, 17, 19]);
