@@ -44,8 +44,14 @@
 
 <div class="page-shell">
 	<header class="topbar">
-		<div>
+		<div class="title-block">
 			<h1>The Sine Quartet</h1>
+			<p class="credit-line">
+				Made for exploration of string harmony by
+				<a href="https://sharpestnote.com" target="_blank" rel="noreferrer"
+					>Pekka Pulli from The Sharpest Note</a
+				>
+			</p>
 		</div>
 
 		<div class="tuning-panel" aria-label="A4 tuning configuration">
@@ -114,6 +120,28 @@
 		align-items: end;
 		gap: 1rem;
 		margin-bottom: 1.5rem;
+	}
+
+	.title-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+
+	.credit-line {
+		margin: 0;
+		font-size: 1rem;
+		line-height: 1.4;
+		color: rgba(191, 219, 254, 0.8);
+	}
+
+	.credit-line a {
+		color: #7dd3fc;
+		text-decoration: none;
+	}
+
+	.credit-line a:hover {
+		text-decoration: underline;
 	}
 
 	.stop-all-button {
