@@ -1,7 +1,8 @@
 <script lang="ts">
 	import FrequencySpectrum from './synth/FrequencySpectrum.svelte';
-	import { createSynth, getHarmonicSpectrum } from './synth/useSynth.svelte';
+	import { createSynth } from './synth/useSynth.svelte';
 	import {
+		getInstrumentHarmonicOverlays,
 		getStringFrequencyAtFret,
 		type FingerboardPosition,
 		type Instrument
@@ -54,6 +55,7 @@
 	let containerHeight = $state(220);
 	let svgElement: SVGSVGElement | undefined = $state();
 	let dragActive = $state(false);
+	let dragPointerId: number | null = $state(null);
 	let activeStringIndex = $state<number | null>(null);
 	let activePositionRatio = $state(0);
 	let currentFrequency = $state<number | null>(null);
@@ -61,16 +63,8 @@
 		Math.max(...layout.flatMap((row) => row.map((position) => position.fretIndex)), 0)
 	);
 	let ratio = $derived(instrument.fingerboardLengthRatio ?? 1);
-	let otherInstrumentHarmonics = $derived.by(() =>
-		Object.entries(activeFrequencyByInstrument ?? {}).flatMap(([id, value]) => {
-			if (id === instrumentId || typeof value !== 'number' || value <= 0) {
-				return [];
-			}
-			return getHarmonicSpectrum(value, 0.45, 0.4, 0.55, 12).map((entry) => ({
-				...entry,
-				instrumentId: id
-			}));
-		})
+	let otherInstrumentHarmonics = $derived(
+		getInstrumentHarmonicOverlays(activeFrequencyByInstrument ?? {})
 	);
 	let boardWidth = $derived(Math.max(containerWidth * ratio, 1));
 	let boardHeight = $derived(
@@ -134,8 +128,16 @@
 		if (!svgElement) return;
 
 		const rect = svgElement.getBoundingClientRect();
-		const x = ((event.clientX - rect.left) / rect.width) * boardWidth;
-		const y = ((event.clientY - rect.top) / rect.height) * boardHeight;
+		const x = clamp(
+			((event.clientX - rect.left) / Math.max(rect.width, 1)) * boardWidth,
+			0,
+			boardWidth
+		);
+		const y = clamp(
+			((event.clientY - rect.top) / Math.max(rect.height, 1)) * boardHeight,
+			0,
+			boardHeight
+		);
 		const pointer = getStringPitchAtPosition(x, y);
 		activeStringIndex = pointer.stringIndex;
 		activePositionRatio = pointer.positionRatio;
@@ -145,21 +147,36 @@
 	}
 
 	function handlePointerDown(event: PointerEvent) {
+		if (event.button !== 0 && event.pointerType !== 'touch') {
+			return;
+		}
 		dragActive = true;
+		dragPointerId = event.pointerId;
 		event.preventDefault();
 		svgElement?.setPointerCapture?.(event.pointerId);
 		updatePointerFromEvent(event);
 	}
 
 	function handlePointerMove(event: PointerEvent) {
-		if (!dragActive) {
+		if (!dragActive || (dragPointerId !== null && event.pointerId !== dragPointerId)) {
 			return;
 		}
 		updatePointerFromEvent(event);
 	}
 
-	function handlePointerUp() {
+	function handlePointerUp(event?: PointerEvent) {
 		dragActive = false;
+		if (event && dragPointerId !== null && event.pointerId === dragPointerId) {
+			svgElement?.releasePointerCapture?.(event.pointerId);
+		}
+		if (dragPointerId !== null && !event) {
+			svgElement?.releasePointerCapture?.(dragPointerId);
+		}
+		dragPointerId = null;
+	}
+
+	function handlePointerCancel(event?: PointerEvent) {
+		handlePointerUp(event);
 	}
 </script>
 
@@ -199,7 +216,7 @@
 		onpointerdown={handlePointerDown}
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
-		onpointerleave={handlePointerUp}
+		onpointercancel={handlePointerCancel}
 	>
 		<g>
 			{#each layout as row, stringIndex (row + '-' + stringIndex)}

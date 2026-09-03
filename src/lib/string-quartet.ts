@@ -1,3 +1,4 @@
+import { getHarmonicSpectrum } from './synth/useSynth.svelte';
 import { frequencyFromNoteNumber } from './tuner/tune';
 
 export type NoteName = 'C' | 'C#' | 'D' | 'D#' | 'E' | 'F' | 'F#' | 'G' | 'G#' | 'A' | 'A#' | 'B';
@@ -23,6 +24,13 @@ export type FingerboardPosition = {
 	midi: number;
 	position: number;
 	positionRatio: number;
+};
+
+export type HarmonicOverlayEntry = {
+	instrumentId: string;
+	harmonic: number;
+	frequency: number;
+	amplitude: number;
 };
 
 const BASE_NOTE_TO_MIDI: Record<NoteName, number> = {
@@ -158,6 +166,22 @@ export function buildFingerboardLayout(
 			});
 		}
 		return row;
+	});
+}
+
+export function getInstrumentHarmonicOverlays(
+	activeFrequencyByInstrument: Record<string, number | null> = {},
+	maxHarmonic = 12
+): HarmonicOverlayEntry[] {
+	return Object.entries(activeFrequencyByInstrument).flatMap(([instrumentId, value]) => {
+		if (typeof value !== 'number' || value <= 0) {
+			return [];
+		}
+
+		return getHarmonicSpectrum(value, 0.45, 0.4, 0.55, maxHarmonic).map((entry) => ({
+			...entry,
+			instrumentId
+		}));
 	});
 }
 
