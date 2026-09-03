@@ -24,7 +24,7 @@
 		overlayColor?: string;
 	} = $props();
 
-	const padding = { top: 12, right: 12, bottom: 20, left: 30 };
+	const padding = { top: 6, right: 12, bottom: 20, left: 12 };
 	const gradientId = `spectrum-gradient-${Math.random().toString(36).slice(2)}`;
 
 	function formatFrequency(value: number): string {
@@ -78,7 +78,6 @@
 		const tickValues = [60, 100, 200, 400, 800, 1600, 2000];
 		return tickValues.filter((tick) => tick >= fixedMinFrequency && tick <= fixedMaxFrequency);
 	});
-	const yTicks = $derived(yScale.ticks(5));
 	const overlayBars = $derived.by(() => {
 		if (!overlaySeries.length) return [];
 		return overlaySeries
@@ -140,14 +139,6 @@
 			>
 		{/each}
 
-		{#each yTicks as tickValue (tickValue)}
-			{@const y = yScale(tickValue)}
-			<line x1={padding.left} y1={y} x2={width - padding.right} y2={y} class="y-grid-line" />
-			<text x={padding.left - 8} y={y + 3} text-anchor="end" class="y-label"
-				>{tickValue.toFixed(1)}</text
-			>
-		{/each}
-
 		{#if overlayBars.length}
 			{#each overlayBars as bar (bar.x + '-' + bar.width + '-' + bar.height)}
 				<rect
@@ -179,8 +170,6 @@
 				</text>
 			{/if}
 		{/each}
-
-		<text x={width / 2} y={10} text-anchor="middle" class="title-label">harmonics</text>
 	</svg>
 </div>
 
@@ -189,7 +178,7 @@
 		position: absolute;
 		right: 0.7rem;
 		bottom: 0.7rem;
-		background: rgba(15, 23, 42, 0.72);
+		background: rgba(15, 23, 42);
 		border: 1px solid rgba(125, 211, 252, 0.35);
 		border-radius: 0.8rem;
 		box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
@@ -212,28 +201,10 @@
 		font-weight: 600;
 	}
 
-	.y-grid-line {
-		stroke: rgba(148, 163, 184, 0.28);
-		stroke-width: 0.75;
-	}
-
-	.y-label {
-		fill: rgba(191, 219, 254, 0.7);
-		font-size: 7px;
-		font-weight: 600;
-	}
-
 	.harmonic-label {
 		fill: rgba(224, 242, 254, 0.92);
 		font-size: 9px;
 		font-weight: 600;
 		pointer-events: none;
-	}
-
-	.title-label {
-		fill: #e0f2fe;
-		font-size: 9px;
-		font-weight: 700;
-		letter-spacing: 0.08em;
 	}
 </style>
