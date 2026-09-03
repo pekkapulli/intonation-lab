@@ -1,173 +1,203 @@
-# Synth Voice Module
+# Bowed-String Additive Synth Voice Specification
 
-A simple Web Audio API-based synth voice for playing musical notes from `MelodyItem` objects.
+## Goal
 
-## Overview
+Create a convincing Web Audio bowed-string voice for the app: a single, responsive, slightly imperfect instrument tone that emphasizes harmonic content and live movement rather than a generic synth waveform. This voice should feel like a bowed string instrument, not a sawtooth with a filter strapped on.
 
-The synth voice module (`useSynth.svelte.ts`) provides a simple interface for playing musical notes in the browser. It follows the same pattern as the `useTuner` module and is designed to work seamlessly with `MelodyItem` objects from the melody configuration.
+The design goal is to capture the perception of a violin, viola, or cello through:
 
-## Features
+- a dense, controllable harmonic series
+- subtle noise from the bow
+- changing brightness with bow pressure and bow position
+- body resonance from the instrument itself
+- vibrato and slow timbral drift over time
+- a note onset that feels like a real bow attack, not an instant waveform switch
 
-- **Simple API**: Play notes with a single function call
-- **MelodyItem Support**: Direct integration with the existing melody system
-- **Configurable Waveforms**: Sine, square, sawtooth, and triangle waves
-- **ADSR Envelope**: Attack and release controls for natural-sounding notes
-- **Rest Support**: Automatically handles rests (null notes)
-- **Safari Compatible**: Follows best practices for Web Audio API in Safari/iOS
+## Core design: dynamic additive synthesis
 
-## Usage
+The voice is based on a dynamic additive model, not a subtractive synth with a single oscillator. Each note is generated from a bank of partials whose amplitudes vary continuously as the bowing state changes.
 
-### Basic Example
+### 1. Partial bank
 
-```typescript
-import { createSynth } from '$lib/tuner/useSynth.svelte';
-import type { MelodyItem } from '$lib/config/melody';
+- Use 24–40 partials per note in the primary voice
+- Partial count should scale down for high notes to avoid aliasing and excessive CPU load
+- Fundamental plus integer harmonics are the primary source of tone
+- Partial amplitudes are controlled in decibels and interpolated smoothly
+- Upper harmonics are allowed to lag behind changes in bow pressure and position for realism
 
-// Create synth instance (must be triggered from user interaction)
-const synth = createSynth({
-  waveform: 'sine',    // 'sine', 'square', 'sawtooth', 'triangle'
-  volume: 0.75,         // 0-1
-  attack: 0.02,        // seconds
-  release: 0.1,        // seconds
-  a4: 442              // reference pitch (default 442)
-});
+Example harmonic profiles for the first 12 partials (relative amplitudes in dB):
 
-// Define a melody
-const melody: MelodyItem[] = [
-  { note: 'C4', length: 4 },  // Quarter note
-  { note: 'E4', length: 2 },  // Eighth note
-  { note: null, length: 2 },  // Rest (eighth)
-  { note: 'G4', length: 4 }   // Quarter note
-];
+```ts
+const softSulTasto = [0, -9, -13, -18, -22, -26, -30, -35, -39, -43, -47, -51];
+const ordinary = [0, -7, -11, -15, -18, -22, -25, -29, -32, -36, -40, -44];
+const nearBridge = [0, -4, -7, -10, -12, -15, -18, -21, -24, -27, -30, -33];
+```
 
-// Play the melody at 120 BPM
-async function playMelody() {
-  const tempoBPM = 120;
-  for (const item of melody) {
-    await synth.playNote(item, tempoBPM);
-  }
+These tables represent the harmonic weight of the sound at different bow states. The voice interpolates between states instead of switching abruptly.
+
+### 2. Bow-state controls
+
+The voice should expose continuous performance parameters rather than only note/velocity/volume:
+
+- `bowPressure`: 0..1
+  - higher pressure = louder, brighter, more upper partial energy, slightly more noise
+- `bowPosition`: 0..1
+  - 0 = over fingerboard / soft, darker timbre
+  - 1 = near bridge / brighter, more attack and upper harmonics
+- `bowSpeed`: 0..1
+  - controls sustained level and brightness, especially during the note body
+- `vibratoRate`: 0..10 Hz
+- `vibratoDepth`: 0..0.05 or cents equivalent
+- `bowDirection`: upward/downward or on/off state for reversal gesture
+- `noteGate`: attack / sustain / release state
+
+These controls are not just UI knobs. They define the actual harmonic and temporal movement of the sound.
+
+## Sound architecture
+
+The voice should be built as a multi-stage signal chain:
+
+1. `fundamental + harmonic partial bank`
+2. `filtered bow noise`
+3. `body resonators or short measured impulse response`
+4. `master gain / optional room reverb`
+
+### Stage 1: Additive tone source
+
+- generate sine partials for each active harmonic
+- each partial has its own phase and amplitude envelope
+- amplitude is shaped by the current bow state
+- total output is the sum of all active partials
+- the fundamental should remain stable, while upper partials are slightly more dynamic
+
+### Stage 2: Bow noise
+
+- add a very quiet broadband noise layer
+- filter it with a moving band-pass or high-pass response
+- increase noise at high bow pressure, fast bow speed, and near-bridge position
+- the noise should be subtle and never become a hissy synth texture
+
+### Stage 3: Body coloration
+
+A bowed string needs resonant body behaviour. Use one of these:
+
+- 3–6 lightly resonant peaking filters tuned for violin/viola/cello body colour
+- or a short measured bridge/body impulse response in a `ConvolverNode`
+
+The body stage should not be a dramatic reverb. It should add a little acoustic complexity and spectral shaping without washing out the note.
+
+### Stage 4: Vibrato and drift
+
+- vibrato should be applied to the fundamental frequency, and all partials should move coherently
+- vibrato onset should be delayed slightly after note attack
+- small slow pitch drift or detuning can be used for realism, but it must remain musical and restrained
+- avoid exaggerated heavy detune; a single responsive voice is more convincing than a synthetic unison stack
+
+## Temporal behaviour
+
+### Note attack
+
+On attack, the voice should not simply jump to full-spectrum tone.
+
+- the fundamental should rise first
+- upper partials should come in with a controlled, slightly delayed rise
+- there should be a brief friction/transient gesture from bow noise
+- the onset may include a tiny amount of transient brightness and edge
+
+### Sustained note body
+
+Once established, the note should continue to evolve.
+
+- bow pressure gradually changes brightness and level
+- bow position changes harmonic tilt
+- spectral balance should move smoothly while the note is held
+- bow reversal should produce a short noisy transition and slight harmonic change
+
+### Release
+
+- release should not be an abrupt cut
+- the harmonic content should slowly fade
+- noise should decay with the note
+- body resonance should ring gently for a short time
+
+## Implementation constraints
+
+### CPU budget
+
+This is feasible in modern browsers when implemented correctly.
+
+- For one bowed voice: 24–40 partials is a modest load
+- For a small polyphonic setup: 6–8 notes at 16–24 partials each is still practical
+- The implementation should not create one `OscillatorNode` per partial per note
+- A single `AudioWorklet` or a scheduled partial synthesizer is preferred over naive `OscillatorNode` fan-out
+
+### Recommended engine
+
+This voice should be implemented in a single worklet-based additive engine:
+
+- one engine handles all partial summation for active voices
+- each voice keeps its own phase, amplitude envelope, and bow state
+- one output stage handles body resonance and optional room processing
+
+This is the right balance between realism and performance.
+
+## API contract
+
+The voice should expose musical controls, not just a fixed waveform parameter.
+
+```ts
+interface BowedStringVoiceState {
+  frequency: number;
+  bowPressure: number; // 0..1
+  bowPosition: number; // 0..1
+  bowSpeed: number; // 0..1
+  vibratoRate: number; // Hz
+  vibratoDepth: number; // cents or normalized depth
+  loudness: number; // 0..1
+  noteOn: boolean;
 }
-
-// Call from user interaction (e.g., button click)
-button.onclick = playMelody;
 ```
 
-### API Reference
+### Expected public methods
 
-#### `createSynth(options?: SynthOptions): SynthVoice`
-
-Creates a new synth voice instance.
-
-**Options:**
-
-- `waveform?: OscillatorType` - Waveform type: 'sine', 'square', 'sawtooth', 'triangle' (default: 'sine')
-- `a4?: number` - Reference A4 frequency (default: 442 Hz)
-- `attack?: number` - Attack time in seconds (default: 0.01)
-- `release?: number` - Release time in seconds (default: 0.05)
-- `volume?: number` - Master volume 0-1 (default: 0.3)
-
-**Returns:** `SynthVoice` object with the following methods:
-
-#### `playNote(item: MelodyItem, tempoBPM: number): Promise<void>`
-
-Plays a single note from a MelodyItem. The promise resolves when the note completes.
-
-**Parameters:**
-
-- `item` - MelodyItem containing note name and length
-- `tempoBPM` - Tempo in beats per minute
-
-**Example:**
-
-```typescript
-await synth.playNote({ note: 'C4', length: 4 }, 120);
-```
-
-#### `stopAll(): void`
-
-Immediately stops all currently playing notes with a quick fade-out.
-
-**Example:**
-
-```typescript
-synth.stopAll();
-```
-
-#### `isPlaying(): boolean`
-
-Returns whether the synth is currently playing any notes.
-
-**Example:**
-
-```typescript
-if (synth.isPlaying()) {
-  console.log('Synth is active');
+```ts
+createBowedStringVoice(): {
+  startNote(frequency: number, state: Partial<BowedStringVoiceState>): void;
+  updateNote(frequency: number, state: Partial<BowedStringVoiceState>): void;
+  stopNote(): void;
+  setBodyColor(color: 'soft' | 'normal' | 'bright'): void;
+  setGain(level: number): void;
 }
 ```
 
-#### `setOptions(options: Partial<SynthOptions>): void`
+This keeps the voice configurable at the musical control layer while allowing implementation details to live in the AudioWorklet.
 
-Updates synth configuration.
+## Design principles
 
-**Example:**
+- The sound is driven by harmonic content, not a single waveform shape
+- Bow movement should feel continuous and musical
+- Spectral colour should vary with bowing behaviour in a plausible way
+- realism comes from history and state transitions, not just a static harmonic table
+- a single slightly imperfect voice is more convincing than a synthetic thick stack
 
-```typescript
-synth.setOptions({
-  waveform: 'square',
-  volume: 0.5
-});
-```
+## Acceptance criteria
 
-## Note Format
+The synth voice should be considered successful when:
 
-Notes should follow the format: `[Letter][Accidental?][Octave]`
+- a note clearly reads as bowed string rather than saw/square synth
+- brightness changes with bow pressure and position in a believable manner
+- the sound has a discernible body resonance and subtle noise floor
+- vibrato feels organic rather than mechanical
+- attack and release do not sound like a simple ADSR pulse
+- the result remains pleasant and pedagogically clear for pitch practice without becoming over-produced or film-score-like
 
-**Examples:**
+## Out of scope
 
-- `C4` - Middle C
-- `D#5` - D sharp in the 5th octave
-- `Eb3` - E flat in the 3rd octave
-- `A4` - Concert A (440 Hz at default A4=442)
+This specification does not aim to recreate a full orchestral string section or a physical model of the entire instrument. It aims to produce a convincing solo bowed-string timbre suitable for pitch learning and musical feedback.
 
-**Rests:**
+The long-term evolution path is:
 
-- Use `null` for the note property to create a rest
-
-## Integration Example
-
-See [SightGame.svelte](../lib/components/sight/SightGame.svelte) for a real-world integration example where the synth is used to play back melodies.
-
-## Safari/iOS Compatibility
-
-⚠️ **Important:** The Web Audio API requires user interaction to initialize on Safari and iOS.
-
-- The first call to `playNote()` must be in response to a user gesture (click, touch)
-- After the initial user gesture, subsequent calls can be made programmatically
-- Do NOT call `playNote()` from async callbacks or after `await` on the first interaction
-
-**Good:**
-
-```typescript
-button.onclick = () => synth.playNote(note, 120);
-```
-
-**Bad:**
-
-```typescript
-button.onclick = async () => {
-  await someAsyncOperation();
-  synth.playNote(note, 120); // Won't work on first call in Safari!
-};
-```
-
-## Demo
-
-Visit `/synth-demo` to see a live demonstration with multiple example melodies and configuration options.
-
-## Implementation Details
-
-- Built on Web Audio API
-- Uses `OscillatorNode` for tone generation
-- ADSR envelope via `GainNode` automation
-- Frequency calculation from MIDI note numbers
-- Automatic cleanup of audio nodes after playback
+1. additive bowed-string voice
+2. richer harmonic profile tables for violin, viola, and cello
+3. optional body IR or measured resonator
+4. later upgrade to a true bowed digital waveguide or physical model if the product requires a deeper instrument simulation

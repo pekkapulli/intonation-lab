@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { createSynth } from './synth/useSynth.svelte';
+	import FrequencySpectrum from './synth/FrequencySpectrum.svelte';
+	import { createSynth, getHarmonicSpectrum } from './synth/useSynth.svelte';
 	import {
 		getStringFrequencyAtFret,
 		type FingerboardPosition,
@@ -9,8 +10,18 @@
 	let {
 		instrument,
 		layout,
-		a4 = 442
-	}: { instrument: Instrument; layout: FingerboardPosition[][]; a4?: number } = $props();
+		a4 = 442,
+		instrumentId = instrument.name,
+		activeFrequencyByInstrument = {},
+		onFrequencyChange = () => {}
+	}: {
+		instrument: Instrument;
+		layout: FingerboardPosition[][];
+		a4?: number;
+		instrumentId?: string;
+		activeFrequencyByInstrument?: Record<string, number | null>;
+		onFrequencyChange?: (instrumentId: string, frequency: number | null) => void;
+	} = $props();
 
 	const synth = createSynth({ waveform: 'sine', volume: 0.3, reverbMix: 0 });
 	$effect(() => {
@@ -37,6 +48,17 @@
 		Math.max(...layout.flatMap((row) => row.map((position) => position.fretIndex)), 0)
 	);
 	let ratio = $derived(instrument.fingerboardLengthRatio ?? 1);
+	let otherInstrumentHarmonics = $derived.by(() =>
+		Object.entries(activeFrequencyByInstrument ?? {}).flatMap(([id, value]) => {
+			if (id === instrumentId || typeof value !== 'number' || value <= 0) {
+				return [];
+			}
+			return getHarmonicSpectrum(value, 0.45, 0.4, 0.55, 12).map((entry) => ({
+				...entry,
+				instrumentId: id
+			}));
+		})
+	);
 	let boardWidth = $derived(Math.max(containerWidth * ratio, 1));
 	let boardHeight = $derived(
 		Math.min(
@@ -92,6 +114,7 @@
 		synth.stopAll();
 		currentFrequency = null;
 		activeStringIndex = null;
+		onFrequencyChange?.(instrumentId, null);
 	}
 
 	function updatePointerFromEvent(event: PointerEvent) {
@@ -104,6 +127,7 @@
 		activeStringIndex = pointer.stringIndex;
 		activePositionRatio = pointer.positionRatio;
 		currentFrequency = pointer.frequency;
+		onFrequencyChange?.(instrumentId, pointer.frequency);
 		synth.playFrequency(pointer.frequency);
 	}
 
@@ -135,6 +159,21 @@
 			</button>
 		</div>
 	{/if}
+
+	{#if currentFrequency !== null && currentFrequency > 0}
+		<FrequencySpectrum
+			frequency={currentFrequency}
+			bowPressure={clamp(0.25 + (activePositionRatio ?? 0) * 0.8, 0, 1)}
+			bowPosition={activePositionRatio ?? 0}
+			bowSpeed={0.55}
+			maxHarmonic={12}
+			width={320}
+			height={160}
+			overlaySeries={otherInstrumentHarmonics}
+			overlayColor="rgba(255, 255, 255, 0.8)"
+		/>
+	{/if}
+
 	<svg
 		bind:this={svgElement}
 		viewBox={`0 0 ${boardWidth} ${boardHeight}`}
@@ -292,6 +331,30 @@
 	.play-marker {
 		stroke: rgba(125, 211, 252, 0.9);
 		stroke-width: 1.5;
+	}
+
+	.harmonic-panel {
+		fill: rgba(15, 23, 42, 0.75);
+		stroke: rgba(125, 211, 252, 0.45);
+		stroke-width: 1;
+	}
+
+	.harmonic-title {
+		fill: #e0f2fe;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+	}
+
+	.harmonic-bar {
+		stroke: rgba(224, 242, 254, 0.35);
+		stroke-width: 0.6;
+	}
+
+	.harmonic-label {
+		fill: #dbeafe;
+		font-size: 8px;
+		font-weight: 700;
 	}
 
 	.play-dot {

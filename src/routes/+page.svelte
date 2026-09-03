@@ -6,6 +6,7 @@
 	const a4Options = [415, 430, 440, 442, 444, 446];
 	let a4Index = $state(3);
 	let a4Hz = $derived(a4Options[a4Index]);
+	let activeFrequencies = $state<Record<string, number | null>>({});
 	const fingerboardRatios = {
 		'Violin I': 0.72,
 		'Violin II': 0.72,
@@ -16,6 +17,10 @@
 		...instrument,
 		layout: buildFingerboardLayout(instrument, fretCount)
 	}));
+
+	function handleInstrumentFrequencyChange(instrumentId: string, frequency: number | null) {
+		activeFrequencies[instrumentId] = frequency;
+	}
 </script>
 
 <div class="page-shell">
@@ -51,7 +56,14 @@
 			<section class="instrument-panel">
 				<div class="instrument-body">
 					<div class="instrument-tag">{instrument.name}</div>
-					<StringQuartetFingerboard layout={instrument.layout} {instrument} a4={a4Hz} />
+					<StringQuartetFingerboard
+						layout={instrument.layout}
+						{instrument}
+						instrumentId={instrument.name}
+						a4={a4Hz}
+						activeFrequencyByInstrument={activeFrequencies}
+						onFrequencyChange={handleInstrumentFrequencyChange}
+					/>
 				</div>
 			</section>
 		{/each}
@@ -144,7 +156,7 @@
 
 	.instrument-tag {
 		position: absolute;
-		right: 0.8rem;
+		left: 0.4rem;
 		top: 50%;
 		transform: translateY(-50%) rotate(180deg);
 		writing-mode: vertical-rl;
