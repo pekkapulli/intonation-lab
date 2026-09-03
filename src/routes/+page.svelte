@@ -8,6 +8,9 @@
 	let a4Hz = $derived(a4Options[a4Index]);
 	let activeFrequencies = $state<Record<string, number | null>>({});
 	let stopAllSignal = $state(0);
+	let welcomeOpen = $state(true);
+	let pageWidth = $state(0);
+	let isCompactLayout = $derived(pageWidth <= 640);
 	const fingerboardRatios = {
 		'Violin I': 0.72,
 		'Violin II': 0.72,
@@ -21,6 +24,20 @@
 
 	function handleInstrumentFrequencyChange(instrumentId: string, frequency: number | null) {
 		activeFrequencies[instrumentId] = frequency;
+	}
+
+	function handleWelcomeStart() {
+		welcomeOpen = false;
+		const AudioCtor =
+			window.AudioContext ??
+			(window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+		if (!AudioCtor) {
+			return;
+		}
+		const audioContext = new AudioCtor();
+		if (audioContext.state === 'suspended') {
+			audioContext.resume();
+		}
 	}
 
 	function stopAllNotes() {
@@ -42,19 +59,40 @@
 
 <svelte:window on:keydown={handleGlobalKeydown} />
 
-<div class="page-shell">
-	<header class="topbar">
-		<div class="title-block">
-			<h1>The Sine Quartet</h1>
+{#if welcomeOpen}
+	<div class="welcome-overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+		<div class="welcome-dialog">
+			<h1 id="welcome-title" class="welcome-title">The Sine Quartet</h1>
 			<p class="credit-line">
 				Made for exploration of string harmony by
 				<a href="https://sharpestnote.com" target="_blank" rel="noreferrer"
 					>Pekka Pulli from The Sharpest Note</a
 				>
+				in conversation with Vitor Vieira.
+			</p>
+			<button type="button" class="welcome-button" onclick={handleWelcomeStart}>
+				Enter the studio
+			</button>
+		</div>
+	</div>
+{/if}
+
+<div class="page-shell" bind:clientWidth={pageWidth} class:compact={isCompactLayout}>
+	<header class="site-header" class:compact={isCompactLayout}>
+		<div class="site-heading">
+			<h1 class="site-title">The Sine Quartet</h1>
+			<p class="credit-line">
+				Made for exploration of string harmony by
+				<a href="https://sharpestnote.com" target="_blank" rel="noreferrer"
+					>Pekka Pulli from The Sharpest Note</a
+				>
+				in conversation with Vitor Vieira.
 			</p>
 		</div>
+	</header>
 
-		<div class="tuning-panel" aria-label="A4 tuning configuration">
+	<header class="topbar" class:compact={isCompactLayout}>
+		<div class="tuning-panel" class:compact={isCompactLayout} aria-label="A4 tuning configuration">
 			<div class="space-between flex w-full flex-row">
 				<label for="a4-slider">A4 reference</label>
 				<div class="a4-readout ml-auto">{a4Hz} Hz</div>
@@ -80,16 +118,16 @@
 		</button>
 	</header>
 
-	<div class="instrument-stack">
+	<div class="instrument-stack" class:compact={isCompactLayout}>
 		{#each instruments as instrument (instrument.name)}
-			<section class="instrument-panel">
+			<section class="instrument-panel" class:compact={isCompactLayout}>
 				<div class="instrument-body">
-					<div class="instrument-tag">{instrument.name}</div>
 					<StringQuartetFingerboard
 						layout={instrument.layout}
 						{instrument}
 						instrumentId={instrument.name}
 						a4={a4Hz}
+						compact={isCompactLayout}
 						activeFrequencyByInstrument={activeFrequencies}
 						{stopAllSignal}
 						onFrequencyChange={handleInstrumentFrequencyChange}
@@ -114,18 +152,68 @@
 		padding: 2rem 1.25rem 4rem;
 	}
 
+	.welcome-overlay {
+		position: fixed;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		padding: 1.5rem;
+		background: rgba(2, 6, 23, 0.72);
+		backdrop-filter: blur(8px);
+		z-index: 30;
+	}
+
+	.welcome-dialog {
+		display: grid;
+		gap: 1rem;
+		max-width: min(32rem, 92vw);
+		padding: 1.75rem 1.5rem 1.5rem;
+		border: 1px solid rgba(125, 211, 252, 0.42);
+		border-radius: 1.25rem;
+		background: rgba(15, 23, 42, 0.92);
+		box-shadow: 0 30px 60px rgba(15, 23, 42, 0.5);
+		text-align: center;
+	}
+
+	.welcome-button {
+		justify-self: center;
+		padding: 0.8rem 1.3rem;
+		border: 1px solid rgba(125, 211, 252, 0.5);
+		border-radius: 999px;
+		background: linear-gradient(135deg, rgba(14, 165, 233, 0.28), rgba(168, 85, 247, 0.2));
+		color: #f0f9ff;
+		font-size: 0.95rem;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.site-header {
+		display: flex;
+		align-items: flex-start;
+		margin-bottom: 1.5rem;
+	}
+
+	.site-heading {
+		display: grid;
+		gap: 0.6rem;
+		max-width: 760px;
+	}
+
+	.site-title {
+		margin: 0;
+		font-size: clamp(2.5rem, 5vw, 5.5rem);
+		line-height: 0.95;
+		letter-spacing: -0.06em;
+		font-weight: 800;
+		color: #f8fbff;
+	}
+
 	.topbar {
 		display: flex;
 		justify-content: space-between;
 		align-items: end;
 		gap: 1rem;
 		margin-bottom: 1.5rem;
-	}
-
-	.title-block {
-		display: flex;
-		flex-direction: column;
-		gap: 0.2rem;
 	}
 
 	.credit-line {
@@ -194,9 +282,9 @@
 		display: inline-block;
 	}
 
-	h1 {
+	.welcome-title {
 		margin: 0;
-		font-size: clamp(2rem, 4vw, 3rem);
+		font-size: clamp(2.1rem, 4vw, 3.2rem);
 		line-height: 1.1;
 	}
 
@@ -206,6 +294,14 @@
 		gap: 1.25rem;
 		min-height: 600px;
 		max-height: calc(100vh - 40px);
+	}
+
+	.instrument-stack.compact {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		min-height: 0;
+		max-height: none;
 	}
 
 	.instrument-panel {
@@ -218,32 +314,34 @@
 		box-shadow: 0 20px 40px rgba(15, 23, 42, 0.32);
 	}
 
-	.instrument-body {
-		position: relative;
-		height: 100%;
-		min-height: 0;
-		padding: 0.75rem 0.85rem 0.85rem;
-		box-sizing: border-box;
+	.instrument-panel.compact {
+		height: 480px;
+		min-height: 300px;
+		width: 100%;
 	}
 
-	.instrument-tag {
-		position: absolute;
-		left: 0.4rem;
-		top: 50%;
-		transform: translateY(-50%) rotate(180deg);
-		writing-mode: vertical-rl;
-		padding: 0.5rem 0.45rem;
-		border-radius: 0.7rem;
-		background: rgba(25, 53, 111);
-		border: 1px solid rgba(125, 211, 252, 0.42);
-		color: #e0f2fe;
-		font-size: 0.74rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		white-space: nowrap;
-		pointer-events: none;
-		z-index: 100;
+	.page-shell.compact {
+		padding: 1rem 0.7rem 2.25rem;
+		max-width: none;
+	}
+
+	.topbar.compact {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.tuning-panel.compact {
+		min-width: 0;
+	}
+
+	.instrument-body {
+		position: relative;
+		display: flex;
+		height: 100%;
+		min-height: 0;
+		padding: 0;
+		margin: 0;
+		box-sizing: border-box;
 	}
 
 	@media (max-width: 860px) {

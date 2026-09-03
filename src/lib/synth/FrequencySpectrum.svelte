@@ -3,29 +3,40 @@
 	import { getHarmonicSpectrum } from './useSynth.svelte';
 
 	let {
-		frequency = 440,
+		frequency = null,
 		bowPressure = 0.45,
 		bowPosition = 0.4,
 		bowSpeed = 0.55,
 		maxHarmonic = 12,
 		width = 240,
 		height = 120,
+		title,
+		onClose,
+		empty = false,
 		overlaySeries = [],
 		overlayColor = 'rgba(255, 255, 255, 0.8)'
 	}: {
-		frequency?: number;
+		frequency?: number | null;
 		bowPressure?: number;
 		bowPosition?: number;
 		bowSpeed?: number;
 		maxHarmonic?: number;
 		width?: number;
 		height?: number;
+		title?: string;
+		onClose?: () => void;
+		empty?: boolean;
 		overlaySeries?: Array<{ harmonic: number; frequency: number; amplitude: number }>;
 		overlayColor?: string;
 	} = $props();
 
-	const padding = { top: 6, right: 12, bottom: 20, left: 12 };
+	const padding = { top: 6, right: 12, bottom: 20, left: 6 };
+	const titleRowHeight = 28;
 	const gradientId = `spectrum-gradient-${Math.random().toString(36).slice(2)}`;
+	let containerWidth = $state(0);
+	let containerHeight = $state(0);
+	const chartWidth = $derived(Math.max(containerWidth || width, 1));
+	const chartHeight = $derived(Math.max((containerHeight || height) - titleRowHeight, 1));
 
 	function formatFrequency(value: number): string {
 		if (value >= 1000) {
@@ -34,25 +45,31 @@
 		return `${Math.round(value)}`;
 	}
 
-	const safeFrequency = $derived(Math.max(frequency, 1));
+	const isEmpty = $derived(
+		Boolean(empty || frequency === null || frequency === undefined || frequency <= 0)
+	);
+	const safeFrequency = $derived(Math.max(frequency ?? 1, 1));
+	const displayTitle = $derived(title ?? (isEmpty ? '—' : `${safeFrequency.toFixed(2)} Hz`));
 	const fixedMinFrequency = 60;
-	const fixedMaxFrequency = 2000;
+	const fixedMaxFrequency = 2400;
 	const harmonicEntries = $derived(
-		getHarmonicSpectrum(safeFrequency, bowPressure, bowPosition, bowSpeed, maxHarmonic)
+		isEmpty
+			? []
+			: getHarmonicSpectrum(safeFrequency, bowPressure, bowPosition, bowSpeed, maxHarmonic)
 	);
 	const xScale = $derived.by(() =>
 		scaleLog()
 			.domain([fixedMinFrequency, fixedMaxFrequency])
-			.range([padding.left, width - padding.right])
+			.range([padding.left, chartWidth - padding.right])
 	);
 	const amplitudeMax = $derived(Math.max(...harmonicEntries.map((entry) => entry.amplitude), 1));
 	const yScale = $derived.by(() =>
 		scaleLinear()
 			.domain([0, amplitudeMax])
-			.range([height - padding.bottom, padding.top + 10])
+			.range([chartHeight - padding.bottom, padding.top + 10])
 			.nice()
 	);
-	const baselineY = $derived(height - padding.bottom);
+	const baselineY = $derived(chartHeight - padding.bottom);
 	const harmonicData = $derived(
 		harmonicEntries
 			.filter(
@@ -79,7 +96,7 @@
 		return tickValues.filter((tick) => tick >= fixedMinFrequency && tick <= fixedMaxFrequency);
 	});
 	const overlayBars = $derived.by(() => {
-		if (!overlaySeries.length) return [];
+		if (isEmpty || !overlaySeries.length) return [];
 		return overlaySeries
 			.filter(
 				(entry) => entry.frequency >= fixedMinFrequency && entry.frequency <= fixedMaxFrequency
@@ -101,14 +118,17 @@
 	});
 </script>
 
-<div class="spectrum-panel">
-	<svg
-		{width}
-		{height}
-		viewBox={`0 0 ${width} ${height}`}
-		role="img"
-		aria-label="Frequency spectrum"
-	>
+<div class="spectrum-panel" bind:clientWidth={containerWidth} bind:clientHeight={containerHeight}>
+	<div class="spectrum-header">
+		<span class="spectrum-title">{displayTitle}</span>
+		{#if onClose && !isEmpty}
+			<button type="button" class="spectrum-close" onclick={onClose} aria-label="Close spectrum">
+				×
+			</button>
+		{/if}
+	</div>
+
+	<svg width={chartWidth} height={chartHeight} role="img" aria-label="Frequency spectrum">
 		<defs>
 			<linearGradient id={gradientId} x1="0%" x2="0%" y1="0%" y2="100%">
 				<stop offset="0%" stop-color="#7dd3fc" />
@@ -118,23 +138,17 @@
 
 		<line
 			x1={padding.left}
-			y1={height - padding.bottom}
-			x2={width - padding.right}
-			y2={height - padding.bottom}
+			y1={baselineY}
+			x2={chartWidth - padding.right}
+			y2={baselineY}
 			class="axis-line"
 		/>
-		<line
-			x1={padding.left}
-			y1={padding.top}
-			x2={padding.left}
-			y2={height - padding.bottom}
-			class="axis-line"
-		/>
+		<line x1={padding.left} y1={padding.top} x2={padding.left} y2={baselineY} class="axis-line" />
 
 		{#each xTicks as tickFrequency (tickFrequency)}
 			{@const x = xScale(tickFrequency)}
 			<line x1={x} y1={baselineY} x2={x} y2={baselineY - 5} class="tick-line" />
-			<text {x} y={height - 2} text-anchor="middle" class="tick-label"
+			<text {x} y={chartHeight - 6} text-anchor="middle" class="tick-label"
 				>{formatFrequency(tickFrequency)}</text
 			>
 		{/each}
@@ -175,14 +189,53 @@
 
 <style>
 	.spectrum-panel {
-		position: absolute;
-		right: 0.7rem;
-		bottom: 0.7rem;
+		width: 100%;
+		height: 100%;
 		background: rgba(15, 23, 42);
 		border: 1px solid rgba(125, 211, 252, 0.35);
 		border-radius: 0.8rem;
 		box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
 		padding: 0.2rem;
+		box-sizing: border-box;
+	}
+
+	.spectrum-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: 0.35rem 0.5rem 0.2rem;
+	}
+
+	.spectrum-title {
+		display: block;
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: #e0f2fe;
+	}
+
+	.spectrum-close {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		height: 1.25rem;
+		width: 1.25rem;
+		padding: 0;
+		border: 1px solid rgba(248, 113, 113, 0.7);
+		border-radius: 999px;
+		background: rgba(127, 29, 29, 0.8);
+		color: #fee2e2;
+		font-size: 0.95rem;
+		line-height: 1;
+		cursor: pointer;
+	}
+
+	.spectrum-panel svg {
+		display: block;
+		width: 100%;
+		height: 100%;
 	}
 
 	.axis-line {
@@ -197,7 +250,7 @@
 
 	.tick-label {
 		fill: #dbeafe;
-		font-size: 8px;
+		font-size: 10px;
 		font-weight: 600;
 	}
 
