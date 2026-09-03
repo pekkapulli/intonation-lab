@@ -7,6 +7,7 @@
 	let a4Index = $state(3);
 	let a4Hz = $derived(a4Options[a4Index]);
 	let activeFrequencies = $state<Record<string, number | null>>({});
+	let stopAllSignal = $state(0);
 	const fingerboardRatios = {
 		'Violin I': 0.72,
 		'Violin II': 0.72,
@@ -21,7 +22,25 @@
 	function handleInstrumentFrequencyChange(instrumentId: string, frequency: number | null) {
 		activeFrequencies[instrumentId] = frequency;
 	}
+
+	function stopAllNotes() {
+		activeFrequencies = {};
+		stopAllSignal += 1;
+		const activeElement = document.activeElement;
+		if (activeElement instanceof HTMLElement) {
+			activeElement.blur();
+		}
+	}
+
+	function handleGlobalKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			stopAllNotes();
+		}
+	}
 </script>
+
+<svelte:window on:keydown={handleGlobalKeydown} />
 
 <div class="page-shell">
 	<header class="topbar">
@@ -49,6 +68,10 @@
 				{/each}
 			</datalist>
 		</div>
+
+		<button type="button" class="stop-all-button" onclick={stopAllNotes} aria-keyshortcuts="Escape">
+			Stop all notes <span class="shortcut">(esc)</span>
+		</button>
 	</header>
 
 	<div class="instrument-stack">
@@ -62,6 +85,7 @@
 						instrumentId={instrument.name}
 						a4={a4Hz}
 						activeFrequencyByInstrument={activeFrequencies}
+						{stopAllSignal}
 						onFrequencyChange={handleInstrumentFrequencyChange}
 					/>
 				</div>
@@ -90,6 +114,26 @@
 		align-items: end;
 		gap: 1rem;
 		margin-bottom: 1.5rem;
+	}
+
+	.stop-all-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.72rem 1rem;
+		border: 1px solid rgba(248, 113, 113, 0.7);
+		border-radius: 999px;
+		background: rgba(127, 29, 29, 0.75);
+		color: #fee2e2;
+		font-size: 0.8rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+
+	.shortcut {
+		font-size: 0.72rem;
+		opacity: 0.85;
 	}
 
 	.tuning-panel {

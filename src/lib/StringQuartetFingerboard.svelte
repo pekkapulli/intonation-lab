@@ -13,6 +13,7 @@
 		a4 = 442,
 		instrumentId = instrument.name,
 		activeFrequencyByInstrument = {},
+		stopAllSignal = 0,
 		onFrequencyChange = () => {}
 	}: {
 		instrument: Instrument;
@@ -20,17 +21,29 @@
 		a4?: number;
 		instrumentId?: string;
 		activeFrequencyByInstrument?: Record<string, number | null>;
+		stopAllSignal?: number;
 		onFrequencyChange?: (instrumentId: string, frequency: number | null) => void;
 	} = $props();
 
 	const synth = createSynth({ waveform: 'sine', volume: 0.3, reverbMix: 0 });
+	let lastStopAllSignal = $state(0);
+	$effect(() => {
+		if (stopAllSignal !== lastStopAllSignal) {
+			lastStopAllSignal = stopAllSignal;
+			stopSynth();
+		}
+	});
 	$effect(() => {
 		synth.setOptions({ a4 });
 		if (activeStringIndex !== null && activePositionRatio !== null) {
 			const stringPitch = instrument.strings[activeStringIndex];
 			const rawFrequency = getStringFrequencyAtFret(stringPitch.midi, 0, 1, a4);
 			const updatedFrequency = rawFrequency / Math.max(1 - activePositionRatio, 0.00001);
-			currentFrequency = updatedFrequency;
+			if (currentFrequency !== updatedFrequency) {
+				currentFrequency = updatedFrequency;
+				onFrequencyChange?.(instrumentId, updatedFrequency);
+				synth.playFrequency(updatedFrequency);
+			}
 		}
 	});
 	const boardPadding = { left: 56, right: 18, top: 18, bottom: 18 };
