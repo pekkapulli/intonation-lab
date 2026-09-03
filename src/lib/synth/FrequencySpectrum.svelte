@@ -49,7 +49,7 @@
 	const yScale = $derived.by(() =>
 		scaleLinear()
 			.domain([0, amplitudeMax])
-			.range([height - padding.bottom, padding.top])
+			.range([height - padding.bottom, padding.top + 10])
 			.nice()
 	);
 	const baselineY = $derived(height - padding.bottom);
@@ -162,7 +162,7 @@
 			{/each}
 		{/if}
 
-		{#each harmonicData as entry (entry.harmonic)}
+		{#each harmonicData as entry, i (entry.harmonic)}
 			<rect
 				x={entry.x - entry.barWidth / 2}
 				y={entry.y}
@@ -172,6 +172,12 @@
 				fill={`url(#${gradientId})`}
 				opacity={0.5 + entry.amplitude * 0.3}
 			/>
+			{#if i < 4}
+				{@const labelY = Math.max(entry.y - 2, padding.top + 4)}
+				<text x={entry.x} y={labelY} text-anchor="middle" class="harmonic-label">
+					{Math.round(entry.frequency)}
+				</text>
+			{/if}
 		{/each}
 
 		<text x={width / 2} y={10} text-anchor="middle" class="title-label">harmonics</text>
@@ -215,6 +221,13 @@
 		fill: rgba(191, 219, 254, 0.7);
 		font-size: 7px;
 		font-weight: 600;
+	}
+
+	.harmonic-label {
+		fill: rgba(224, 242, 254, 0.92);
+		font-size: 9px;
+		font-weight: 600;
+		pointer-events: none;
 	}
 
 	.title-label {
