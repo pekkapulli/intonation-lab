@@ -1,6 +1,8 @@
 <script lang="ts">
 	import StringQuartetFingerboard from '$lib/StringQuartetFingerboard.svelte';
+	import WelcomeDialog from '$lib/WelcomeDialog.svelte';
 	import { buildFingerboardLayout, getStringQuartetInstruments } from '$lib/string-quartet';
+	import { startAudioEngine } from '$lib/synth/audioStart';
 
 	const fretCount = 19;
 	const a4Options = [415, 430, 440, 442, 444, 446];
@@ -26,18 +28,9 @@
 		activeFrequencies[instrumentId] = frequency;
 	}
 
-	function handleWelcomeStart() {
+	async function handleWelcomeStart() {
 		welcomeOpen = false;
-		const AudioCtor =
-			window.AudioContext ??
-			(window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-		if (!AudioCtor) {
-			return;
-		}
-		const audioContext = new AudioCtor();
-		if (audioContext.state === 'suspended') {
-			audioContext.resume();
-		}
+		await startAudioEngine();
 	}
 
 	function stopAllNotes() {
@@ -59,23 +52,7 @@
 
 <svelte:window on:keydown={handleGlobalKeydown} />
 
-{#if welcomeOpen}
-	<div class="welcome-overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
-		<div class="welcome-dialog">
-			<h1 id="welcome-title" class="welcome-title">The Sine Quartet</h1>
-			<p class="credit-line">
-				Made for exploration of string harmony by
-				<a href="https://sharpestnote.com" target="_blank" rel="noreferrer"
-					>Pekka Pulli from The Sharpest Note</a
-				>
-				in conversation with Vitor Vieira.
-			</p>
-			<button type="button" class="welcome-button" onclick={handleWelcomeStart}>
-				Enter the studio
-			</button>
-		</div>
-	</div>
-{/if}
+<WelcomeDialog bind:open={welcomeOpen} onClose={handleWelcomeStart} />
 
 <div class="page-shell" bind:clientWidth={pageWidth} class:compact={isCompactLayout}>
 	<header class="site-header" class:compact={isCompactLayout}>
@@ -150,41 +127,6 @@
 		max-width: 1560px;
 		margin: 0 auto;
 		padding: 2rem 1.25rem 4rem;
-	}
-
-	.welcome-overlay {
-		position: fixed;
-		inset: 0;
-		display: grid;
-		place-items: center;
-		padding: 1.5rem;
-		background: rgba(2, 6, 23, 0.72);
-		backdrop-filter: blur(8px);
-		z-index: 30;
-	}
-
-	.welcome-dialog {
-		display: grid;
-		gap: 1rem;
-		max-width: min(32rem, 92vw);
-		padding: 1.75rem 1.5rem 1.5rem;
-		border: 1px solid rgba(125, 211, 252, 0.42);
-		border-radius: 1.25rem;
-		background: rgba(15, 23, 42, 0.92);
-		box-shadow: 0 30px 60px rgba(15, 23, 42, 0.5);
-		text-align: center;
-	}
-
-	.welcome-button {
-		justify-self: center;
-		padding: 0.8rem 1.3rem;
-		border: 1px solid rgba(125, 211, 252, 0.5);
-		border-radius: 999px;
-		background: linear-gradient(135deg, rgba(14, 165, 233, 0.28), rgba(168, 85, 247, 0.2));
-		color: #f0f9ff;
-		font-size: 0.95rem;
-		font-weight: 700;
-		cursor: pointer;
 	}
 
 	.site-header {
@@ -280,12 +222,6 @@
 		color: #e0f2fe;
 		text-align: right;
 		display: inline-block;
-	}
-
-	.welcome-title {
-		margin: 0;
-		font-size: clamp(2.1rem, 4vw, 3.2rem);
-		line-height: 1.1;
 	}
 
 	.instrument-stack {
