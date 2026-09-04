@@ -10,6 +10,7 @@ export type StringPitch = {
 };
 
 export type Instrument = {
+	id: string;
 	name: string;
 	strings: StringPitch[];
 	lowestNote: string;
@@ -92,6 +93,7 @@ export function getStringQuartetInstruments(
 
 	return [
 		{
+			id: 'violin-i',
 			name: 'Violin I',
 			strings: violinStrings,
 			lowestNote: violinStrings[0].note,
@@ -99,6 +101,7 @@ export function getStringQuartetInstruments(
 			fingerboardLengthRatio: instrumentLengths['Violin I'] ?? 1
 		},
 		{
+			id: 'violin-ii',
 			name: 'Violin II',
 			strings: violinStrings,
 			lowestNote: violinStrings[0].note,
@@ -106,6 +109,7 @@ export function getStringQuartetInstruments(
 			fingerboardLengthRatio: instrumentLengths['Violin II'] ?? 1
 		},
 		{
+			id: 'viola',
 			name: 'Viola',
 			strings: violaStrings,
 			lowestNote: violaStrings[0].note,
@@ -113,6 +117,7 @@ export function getStringQuartetInstruments(
 			fingerboardLengthRatio: instrumentLengths['Viola'] ?? 1
 		},
 		{
+			id: 'cello',
 			name: 'Cello',
 			strings: celloStrings,
 			lowestNote: celloStrings[0].note,
@@ -140,6 +145,85 @@ export function getVisibleFretRatio(
 		return 0;
 	}
 	return getFretPositionRatio(fretIndex) / maxVisiblePositionRatio;
+}
+
+export function getBoardSelectionForPointer({
+	x,
+	y,
+	compactLayout,
+	boardWidth,
+	boardHeight,
+	boardPadding,
+	stringCount,
+	stringSpacing,
+	fretScale,
+	maxVisiblePositionRatio = 1 - Math.pow(2, -19 / 12)
+}: {
+	x: number;
+	y: number;
+	compactLayout: boolean;
+	boardWidth: number;
+	boardHeight: number;
+	boardPadding: { left: number; right: number; top: number; bottom: number };
+	stringCount: number;
+	stringSpacing: number;
+	fretScale: number;
+	maxVisiblePositionRatio?: number;
+}): { stringIndex: number; positionRatio: number } {
+	const safeStringSpacing = Math.max(stringSpacing, 0.00001);
+	const safeFretScale = Math.max(fretScale, 0.00001);
+
+	if (compactLayout) {
+		const stringIndex = clamp(
+			x <= boardPadding.left
+				? 0
+				: x >= boardWidth - boardPadding.right
+					? stringCount - 1
+					: Math.round((x - boardPadding.left) / safeStringSpacing),
+			0,
+			stringCount - 1
+		);
+		const positionRatio =
+			maxVisiblePositionRatio *
+			clamp(
+				y <= boardPadding.top
+					? 0
+					: y >= boardPadding.top + safeFretScale
+						? 1
+						: (y - boardPadding.top) / safeFretScale,
+				0,
+				1
+			);
+
+		return { stringIndex, positionRatio };
+	}
+
+	const stringIndex = clamp(
+		y <= boardPadding.top
+			? stringCount - 1
+			: y >= boardHeight - boardPadding.bottom
+				? 0
+				: stringCount - 1 - Math.round((y - boardPadding.top) / safeStringSpacing),
+		0,
+		stringCount - 1
+	);
+	const positionRatio =
+		maxVisiblePositionRatio *
+		clamp(
+			x <= boardPadding.left
+				? 0
+				: x >= boardPadding.left + safeFretScale
+					? 1
+					: (x - boardPadding.left) / safeFretScale,
+			0,
+			1
+		);
+
+	return { stringIndex, positionRatio };
+}
+
+function clamp(value: number, min: number, max: number): number {
+	return Math.min(max, Math.max(min, value));
 }
 
 export function getStringFrequencyAtFret(
@@ -184,9 +268,13 @@ export function buildFingerboardLayout(
 
 export function getInstrumentHarmonicOverlays(
 	activeFrequencyByInstrument: Record<string, number | null> = {},
-	maxHarmonic = 12
+	maxHarmonic = 12,
+	excludeInstrumentId?: string
 ): HarmonicOverlayEntry[] {
 	return Object.entries(activeFrequencyByInstrument).flatMap(([instrumentId, value]) => {
+		if (instrumentId === excludeInstrumentId) {
+			return [];
+		}
 		if (typeof value !== 'number' || value <= 0) {
 			return [];
 		}

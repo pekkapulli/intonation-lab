@@ -102,7 +102,7 @@
 					<StringQuartetFingerboard
 						layout={instrument.layout}
 						{instrument}
-						instrumentId={instrument.name}
+						instrumentId={instrument.id}
 						a4={a4Hz}
 						compact={isCompactLayout}
 						activeFrequencyByInstrument={activeFrequencies}

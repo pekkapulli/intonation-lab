@@ -9,7 +9,8 @@ import {
 	isValidQuartetSetup,
 	getStringFrequencyAtFret,
 	getInstrumentHarmonicOverlays,
-	getVisibleFretRatio
+	getVisibleFretRatio,
+	getBoardSelectionForPointer
 } from '$lib/string-quartet';
 
 describe('string quartet tunings', () => {
@@ -21,6 +22,12 @@ describe('string quartet tunings', () => {
 			'Violin II',
 			'Viola',
 			'Cello'
+		]);
+		expect(instruments.map((instrument: Instrument) => instrument.id)).toEqual([
+			'violin-i',
+			'violin-ii',
+			'viola',
+			'cello'
 		]);
 
 		expect(instruments[0].strings.map((string: StringPitch) => string.note)).toEqual([
@@ -78,6 +85,74 @@ describe('string quartet tunings', () => {
 		expect(getVisibleFretRatio(19, maxVisiblePositionRatio)).toBeCloseTo(1, 6);
 	});
 
+	it('selects the lowest and highest notes when a pointer is in the board padding', () => {
+		const maxVisiblePositionRatio = 1 - Math.pow(2, -19 / 12);
+		const boardPadding = { left: 32, right: 32, top: 24, bottom: 18 };
+		const boardWidth = 420;
+		const boardHeight = 220;
+		const stringCount = 4;
+		const stringSpacing =
+			(boardHeight - boardPadding.top - boardPadding.bottom) / (stringCount - 1);
+		const fretScale = boardWidth - boardPadding.left - boardPadding.right;
+
+		expect(
+			getBoardSelectionForPointer({
+				x: 12,
+				y: 120,
+				compactLayout: false,
+				boardWidth,
+				boardHeight,
+				boardPadding,
+				stringCount,
+				stringSpacing,
+				fretScale,
+				maxVisiblePositionRatio
+			})
+		).toMatchObject({ positionRatio: 0 });
+		expect(
+			getBoardSelectionForPointer({
+				x: 408,
+				y: 120,
+				compactLayout: false,
+				boardWidth,
+				boardHeight,
+				boardPadding,
+				stringCount,
+				stringSpacing,
+				fretScale,
+				maxVisiblePositionRatio
+			})
+		).toMatchObject({ positionRatio: maxVisiblePositionRatio });
+		expect(
+			getBoardSelectionForPointer({
+				x: 220,
+				y: 10,
+				compactLayout: false,
+				boardWidth,
+				boardHeight,
+				boardPadding,
+				stringCount,
+				stringSpacing,
+				fretScale,
+				maxVisiblePositionRatio
+			})
+		).toMatchObject({ stringIndex: stringCount - 1 });
+		expect(
+			getBoardSelectionForPointer({
+				x: 220,
+				y: 210,
+				compactLayout: false,
+				boardWidth,
+				boardHeight,
+				boardPadding,
+				stringCount,
+				stringSpacing,
+				fretScale,
+				maxVisiblePositionRatio
+			})
+		).toMatchObject({ stringIndex: 0 });
+	});
+
 	it('calculates frequency from the full string length and fret position', () => {
 		const a4 = 442;
 		const openStringFrequency = getStringFrequencyAtFret(55, 0, 1, a4);
@@ -128,5 +203,19 @@ describe('string quartet tunings', () => {
 		expect(overlays.some((entry) => entry.instrumentId === 'Viola' && entry.harmonic === 3)).toBe(
 			true
 		);
+	});
+
+	it('excludes the current instrument from overlay bars when using instrument ids', () => {
+		const activeFrequencies = {
+			'violin-i': 220,
+			'violin-ii': 330,
+			viola: 440,
+			cello: null
+		};
+
+		const overlays = getInstrumentHarmonicOverlays(activeFrequencies, 12, 'violin-i');
+		expect(overlays.some((entry) => entry.instrumentId === 'violin-i')).toBe(false);
+		expect(overlays.some((entry) => entry.instrumentId === 'violin-ii')).toBe(true);
+		expect(overlays.some((entry) => entry.instrumentId === 'viola')).toBe(true);
 	});
 });

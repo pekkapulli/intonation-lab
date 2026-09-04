@@ -130,9 +130,7 @@
 			)
 			.map((entry) => {
 				const x = xScale(entry.frequency);
-				const nextX = xScale(entry.frequency * 1.05);
-				const prevX = xScale(entry.frequency / 1.05);
-				const widthValue = Math.max(3, Math.abs(nextX - prevX) * 0.65);
+				const widthValue = 3;
 				const amplitudeY = yScale(entry.amplitude);
 				const barHeight = Math.max(0, baselineY - amplitudeY);
 				return {
@@ -189,7 +187,7 @@
 					height={bar.height}
 					rx={1}
 					fill={overlayColor}
-					opacity={0.6}
+					opacity={0.8}
 				/>
 			{/each}
 		{/if}

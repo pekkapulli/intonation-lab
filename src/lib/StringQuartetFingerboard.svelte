@@ -2,6 +2,7 @@
 	import FrequencySpectrum from './synth/FrequencySpectrum.svelte';
 	import { createSynth } from './synth/useSynth.svelte';
 	import {
+		getBoardSelectionForPointer,
 		getInstrumentHarmonicOverlays,
 		getStringFrequencyAtFret,
 		getVisibleFretRatio,
@@ -13,7 +14,7 @@
 		instrument,
 		layout,
 		a4 = 442,
-		instrumentId = instrument.name,
+		instrumentId = instrument.id,
 		activeFrequencyByInstrument = {},
 		stopAllSignal = 0,
 		onFrequencyChange = () => {},
@@ -52,7 +53,7 @@
 		Math.max(...layout.flatMap((row) => row.map((position) => position.fretIndex)), 0)
 	);
 	let otherInstrumentHarmonics = $derived(
-		getInstrumentHarmonicOverlays(activeFrequencyByInstrument ?? {})
+		getInstrumentHarmonicOverlays(activeFrequencyByInstrument ?? {}, 12, instrumentId)
 	);
 	let boardWidth = $derived(Math.max(containerWidth, 1));
 	$effect(() => {
@@ -129,29 +130,18 @@
 	}
 
 	function getStringPitchAtPosition(x: number, y: number) {
-		if (compactLayout) {
-			const visualStringIndex = clamp(
-				Math.round((x - boardPadding.left) / stringSpacing),
-				0,
-				instrument.strings.length - 1
-			);
-			const stringIndex = visualStringIndex;
-			const visualRatio = clamp((y - boardPadding.top) / fretScale, 0, 1);
-			const positionRatio = maxVisiblePositionRatio * visualRatio;
-			const stringPitch = instrument.strings[stringIndex];
-			const rawFrequency = getStringFrequencyAtFret(stringPitch.midi, 0, 1, a4);
-			const frequency = rawFrequency / Math.max(1 - positionRatio, 0.00001);
-			return { stringIndex, positionRatio, frequency };
-		}
-
-		const visualStringIndex = clamp(
-			Math.round((y - boardPadding.top) / stringSpacing),
-			0,
-			instrument.strings.length - 1
-		);
-		const stringIndex = instrument.strings.length - 1 - visualStringIndex;
-		const visualRatio = clamp((x - boardPadding.left) / fretScale, 0, 1);
-		const positionRatio = maxVisiblePositionRatio * visualRatio;
+		const { stringIndex, positionRatio } = getBoardSelectionForPointer({
+			x,
+			y,
+			compactLayout: compactLayout,
+			boardWidth,
+			boardHeight,
+			boardPadding: boardPadding,
+			stringCount: instrument.strings.length,
+			stringSpacing,
+			fretScale,
+			maxVisiblePositionRatio
+		});
 		const stringPitch = instrument.strings[stringIndex];
 		const rawFrequency = getStringFrequencyAtFret(stringPitch.midi, 0, 1, a4);
 		const frequency = rawFrequency / Math.max(1 - positionRatio, 0.00001);
