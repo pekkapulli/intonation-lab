@@ -1,4 +1,5 @@
 import { frequencyFromNoteNumber, DEFAULT_A4 } from '../tuner/tune';
+import { startAudioEngine } from './audioStart';
 import { noteNameToMidi } from './noteUtils';
 import type { BowedStringVoiceState, MelodyItem, SynthOptions, SynthVoice } from './types';
 // @ts-expect-error - no type definitions available
@@ -248,9 +249,14 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 	 * Initialize audio context and audio graph if not already done.
 	 * Must be called from user interaction on first use.
 	 */
-	function ensureAudioContext() {
+	async function ensureAudioContext() {
+		const startedContext = await startAudioEngine();
+		if (!startedContext) {
+			throw new Error('[Synth] AudioContext is not available in this browser');
+		}
+
 		if (!audioContext) {
-			audioContext = new AudioContext();
+			audioContext = startedContext;
 
 			dryGain = audioContext.createGain();
 			wetGain = audioContext.createGain();
@@ -274,10 +280,6 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 			}
 			wetGain.connect(masterGain);
 			masterGain.connect(audioContext.destination);
-		}
-
-		if (audioContext.state === 'suspended') {
-			audioContext.resume();
 		}
 	}
 
@@ -303,8 +305,14 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 	/**
 	 * Play a single exact frequency continuously until stopped.
 	 */
-	function playFrequency(frequency: number) {
-		ensureAudioContext();
+	async function playFrequency(frequency: number) {
+		try {
+			await ensureAudioContext();
+		} catch (error) {
+			console.error('[Synth] Failed to initialize audio context', error);
+			return;
+		}
+
 		if (!audioContext || !dryGain || !reverbNode) {
 			console.error('[Synth] AudioContext not initialized');
 			return;
@@ -341,7 +349,12 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 			return;
 		}
 
-		ensureAudioContext();
+		try {
+			await ensureAudioContext();
+		} catch (error) {
+			console.error('[Synth] Failed to initialize audio context', error);
+			return;
+		}
 		if (!audioContext || !dryGain || !reverbNode) {
 			console.error('[Synth] AudioContext not initialized');
 			return;
