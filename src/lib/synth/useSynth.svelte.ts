@@ -105,6 +105,7 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 	let dryGain: GainNode | null = null;
 	let wetGain: GainNode | null = null;
 	let reverbNode: AudioNode | null = null;
+	let outputFilter: BiquadFilterNode | null = null;
 	let continuousVoice: ActiveVoice | null = null;
 	let lastActiveFrequency = 0;
 	const activeVoices: ActiveVoice[] = [];
@@ -125,6 +126,7 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 	let vibratoRate = options.vibratoRate ?? 5.2;
 	let vibratoDepth = options.vibratoDepth ?? 0.016;
 	let bodyColor = options.bodyColor ?? 'normal';
+	let lowPassCutoff = options.lowPassCutoff ?? 12000;
 
 	function createAdditiveVoice(
 		frequency: number,
@@ -261,6 +263,10 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 			dryGain = audioContext.createGain();
 			wetGain = audioContext.createGain();
 			masterGain = audioContext.createGain();
+			outputFilter = audioContext.createBiquadFilter();
+			outputFilter.type = 'lowpass';
+			outputFilter.frequency.value = lowPassCutoff;
+			outputFilter.Q.value = 0.7;
 
 			reverbNode = reverb(audioContext);
 			// @ts-expect-error - soundbank-reverb has time and wet properties
@@ -279,7 +285,8 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 				reverbNode.connect(wetGain);
 			}
 			wetGain.connect(masterGain);
-			masterGain.connect(audioContext.destination);
+			masterGain.connect(outputFilter);
+			outputFilter.connect(audioContext.destination);
 		}
 	}
 
@@ -467,6 +474,14 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 		if (opts.vibratoRate !== undefined) vibratoRate = opts.vibratoRate;
 		if (opts.vibratoDepth !== undefined) vibratoDepth = opts.vibratoDepth;
 		if (opts.bodyColor !== undefined) bodyColor = opts.bodyColor;
+		if (opts.lowPassCutoff !== undefined) {
+			lowPassCutoff = opts.lowPassCutoff;
+			if (outputFilter) {
+				const now = audioContext?.currentTime ?? 0;
+				outputFilter.frequency.cancelScheduledValues(now);
+				outputFilter.frequency.setTargetAtTime(lowPassCutoff, now, 0.08);
+			}
+		}
 		if (continuousVoice && previousA4 !== a4 && lastActiveFrequency > 0) {
 			const targetFrequency = lastActiveFrequency * (a4 / previousA4);
 			setVoiceState(continuousVoice, targetFrequency, {

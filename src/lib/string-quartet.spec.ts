@@ -10,7 +10,8 @@ import {
 	getStringFrequencyAtFret,
 	getInstrumentHarmonicOverlays,
 	getVisibleFretRatio,
-	getBoardSelectionForPointer
+	getBoardSelectionForPointer,
+	getInstrumentTimbreProfile
 } from '$lib/string-quartet';
 
 describe('string quartet tunings', () => {
@@ -151,6 +152,18 @@ describe('string quartet tunings', () => {
 				maxVisiblePositionRatio
 			})
 		).toMatchObject({ stringIndex: 0 });
+	});
+
+	it('uses a brighter low-pass cutoff for violin, a mid cutoff for viola, and a warm cutoff for cello', () => {
+		const violin = getInstrumentTimbreProfile('Violin I');
+		const viola = getInstrumentTimbreProfile('Viola');
+		const cello = getInstrumentTimbreProfile('Cello');
+
+		expect(violin.lowPassCutoff).toBeGreaterThan(viola.lowPassCutoff);
+		expect(viola.lowPassCutoff).toBeGreaterThan(cello.lowPassCutoff);
+		expect(violin.bodyColor).toBe('bright');
+		expect(viola.bodyColor).toBe('normal');
+		expect(cello.bodyColor).toBe('soft');
 	});
 
 	it('calculates frequency from the full string length and fret position', () => {

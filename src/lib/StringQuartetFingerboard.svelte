@@ -4,6 +4,7 @@
 	import {
 		getBoardSelectionForPointer,
 		getInstrumentHarmonicOverlays,
+		getInstrumentTimbreProfile,
 		getStringFrequencyAtFret,
 		getVisibleFretRatio,
 		type FingerboardPosition,
@@ -63,7 +64,12 @@
 		}
 	});
 	$effect(() => {
-		synth.setOptions({ a4 });
+		const timbre = getInstrumentTimbreProfile(instrument.name);
+		synth.setOptions({
+			a4,
+			lowPassCutoff: timbre.lowPassCutoff,
+			bodyColor: timbre.bodyColor
+		});
 		if (activeStringIndex !== null && activePositionRatio !== null) {
 			const stringPitch = instrument.strings[activeStringIndex];
 			const rawFrequency = getStringFrequencyAtFret(stringPitch.midi, 0, 1, a4);

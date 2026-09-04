@@ -65,6 +65,22 @@ export const STRING_QUARTET_FINGERBOARD_LENGTHS: Record<string, number> = {
 	Cello: 1
 };
 
+export function getInstrumentTimbreProfile(instrumentNameOrId: string): {
+	lowPassCutoff: number;
+	bodyColor: 'soft' | 'normal' | 'bright';
+} {
+	const normalized = instrumentNameOrId.toLowerCase();
+
+	if (normalized.includes('cello')) {
+		return { lowPassCutoff: 5200, bodyColor: 'soft' };
+	}
+	if (normalized.includes('viola')) {
+		return { lowPassCutoff: 8200, bodyColor: 'normal' };
+	}
+
+	return { lowPassCutoff: 12500, bodyColor: 'bright' };
+}
+
 export function getStringQuartetInstruments(
 	config: Partial<Record<string, number>> = {}
 ): Instrument[] {

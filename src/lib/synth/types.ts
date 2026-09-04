@@ -31,6 +31,7 @@ export interface SynthOptions {
 	vibratoRate?: number;
 	vibratoDepth?: number;
 	bodyColor?: 'soft' | 'normal' | 'bright';
+	lowPassCutoff?: number;
 }
 
 export interface SynthVoice {
