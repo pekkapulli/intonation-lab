@@ -129,6 +129,19 @@ export function getFretPositionRatio(fretIndex: number): number {
 	return 1 - Math.pow(2, -fretIndex / 12);
 }
 
+export function getVisibleFretRatio(
+	fretIndex: number,
+	maxVisiblePositionRatio = 1 - Math.pow(2, -19 / 12)
+): number {
+	if (fretIndex <= 0) {
+		return 0;
+	}
+	if (maxVisiblePositionRatio <= 0) {
+		return 0;
+	}
+	return getFretPositionRatio(fretIndex) / maxVisiblePositionRatio;
+}
+
 export function getStringFrequencyAtFret(
 	openStringMidi: number,
 	fretIndex: number,

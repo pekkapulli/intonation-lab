@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { scaleLinear, scaleLog } from 'd3-scale';
+	import { noteNameFromMidi } from '../string-quartet';
+	import { DEFAULT_A4, frequencyFromNoteNumber } from '../tuner/tune';
 	import { getHarmonicSpectrum } from './useSynth.svelte';
 
 	let {
@@ -49,7 +51,32 @@
 		Boolean(empty || frequency === null || frequency === undefined || frequency <= 0)
 	);
 	const safeFrequency = $derived(Math.max(frequency ?? 1, 1));
-	const displayTitle = $derived(title ?? (isEmpty ? '—' : `${safeFrequency.toFixed(2)} Hz`));
+	const closestNote = $derived.by(() => {
+		if (isEmpty) {
+			return null;
+		}
+		const nearestMidi = Math.round(69 + 12 * Math.log2(safeFrequency / DEFAULT_A4));
+		const nearestFrequency = frequencyFromNoteNumber(nearestMidi, DEFAULT_A4);
+		const cents = Math.round(1200 * Math.log2(safeFrequency / nearestFrequency));
+		return {
+			note: noteNameFromMidi(nearestMidi),
+			cents
+		};
+	});
+	const displayTitle = $derived.by(() => {
+		if (title) {
+			return title;
+		}
+		if (isEmpty) {
+			return '—';
+		}
+		if (!closestNote) {
+			return `${safeFrequency.toFixed(2)} Hz`;
+		}
+		const centsText =
+			closestNote.cents === 0 ? '' : ` ${closestNote.cents > 0 ? '+' : ''}${closestNote.cents}¢`;
+		return `${closestNote.note}${centsText} ${safeFrequency.toFixed(2)} Hz`;
+	});
 	const fixedMinFrequency = 60;
 	const fixedMaxFrequency = 2400;
 	const harmonicEntries = $derived(

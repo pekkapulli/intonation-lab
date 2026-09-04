@@ -8,7 +8,8 @@ import {
 	noteNameFromMidi,
 	isValidQuartetSetup,
 	getStringFrequencyAtFret,
-	getInstrumentHarmonicOverlays
+	getInstrumentHarmonicOverlays,
+	getVisibleFretRatio
 } from '$lib/string-quartet';
 
 describe('string quartet tunings', () => {
@@ -65,6 +66,16 @@ describe('string quartet tunings', () => {
 		expect(layout[0][3].note).toBe('A#3');
 		expect(layout[0][5].note).toBe('C4');
 		expect(layout[0][12].note).toBe('G4');
+	});
+
+	it('maps visible fret spacing using the correct logarithmic fret ratio', () => {
+		const maxVisiblePositionRatio = 1 - Math.pow(2, -19 / 12);
+		expect(getVisibleFretRatio(0, maxVisiblePositionRatio)).toBe(0);
+		expect(getVisibleFretRatio(12, maxVisiblePositionRatio)).toBeCloseTo(
+			0.5 / maxVisiblePositionRatio,
+			6
+		);
+		expect(getVisibleFretRatio(19, maxVisiblePositionRatio)).toBeCloseTo(1, 6);
 	});
 
 	it('calculates frequency from the full string length and fret position', () => {

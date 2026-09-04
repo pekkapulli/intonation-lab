@@ -4,6 +4,7 @@
 	import {
 		getInstrumentHarmonicOverlays,
 		getStringFrequencyAtFret,
+		getVisibleFretRatio,
 		type FingerboardPosition,
 		type Instrument
 	} from './string-quartet';
@@ -99,17 +100,14 @@
 		return Math.min(max, Math.max(min, value));
 	}
 
-	function fretRatio(fretIndex: number): number {
-		if (fretIndex <= 0) return 0;
-		return fretIndex / Math.max(fretTotal, 1);
-	}
-
 	function xForFret(fretIndex: number): number {
-		return boardPadding.left + fretRatio(fretIndex) * fretScale;
+		const visibleRatio = getVisibleFretRatio(fretIndex, maxVisiblePositionRatio);
+		return boardPadding.left + visibleRatio * fretScale;
 	}
 
 	function yForFret(fretIndex: number): number {
-		return boardPadding.top + fretRatio(fretIndex) * fretScale;
+		const visibleRatio = getVisibleFretRatio(fretIndex, maxVisiblePositionRatio);
+		return boardPadding.top + visibleRatio * fretScale;
 	}
 
 	function xForPositionRatio(positionRatio: number): number {
@@ -346,7 +344,6 @@
 			bowPosition={activePositionRatio ?? 0}
 			bowSpeed={0.55}
 			maxHarmonic={12}
-			title={currentFrequency !== null ? `${currentFrequency.toFixed(2)} Hz` : '—'}
 			onClose={currentFrequency !== null ? stopSynth : undefined}
 			empty={currentFrequency === null}
 			overlaySeries={otherInstrumentHarmonics}
