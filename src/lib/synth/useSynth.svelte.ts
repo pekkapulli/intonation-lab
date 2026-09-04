@@ -12,6 +12,7 @@ import reverb from 'soundbank-reverb';
 const SOFT_PROFILE = [0, -7, -11, -14, -17, -20, -23, -25, -27, -29, -31, -33];
 const ORDINARY_PROFILE = [0, -5, -8, -10, -12, -14, -16, -18, -20, -22, -24, -26];
 const NEAR_BRIDGE_PROFILE = [0, -3, -5, -7, -9, -11, -13, -15, -17, -19, -21, -23];
+const MAX_PLAYABLE_FREQUENCY = 20000;
 
 type ActivePartial = {
 	osc: OscillatorNode;
@@ -37,6 +38,10 @@ function smoothstep(value: number): number {
 
 function decibelToLinear(valueDb: number): number {
 	return Math.pow(10, valueDb / 20);
+}
+
+function clampFrequencyToPlayable(frequency: number): number {
+	return clamp(frequency, 0, MAX_PLAYABLE_FREQUENCY);
 }
 
 function profileForPartial(partialNumber: number, profile: number[]): number {
@@ -80,7 +85,7 @@ export function getHarmonicSpectrum(
 	const safeBase = Math.max(baseFrequency, 1);
 	return Array.from({ length: Math.max(maxHarmonic, 1) }, (_, index) => {
 		const harmonic = index + 1;
-		const frequency = harmonic * safeBase;
+		const frequency = clampFrequencyToPlayable(harmonic * safeBase);
 		const amplitude = getHarmonicProfile(harmonic, bowPressure, bowPosition, bowSpeed);
 		return {
 			harmonic,
@@ -138,6 +143,7 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 			throw new Error('[Synth] AudioContext not initialized');
 		}
 
+		const safeFrequency = clampFrequencyToPlayable(frequency);
 		const now = audioContext.currentTime;
 		const masterGainNode = audioContext.createGain();
 		const partials: ActivePartial[] = [];
@@ -148,10 +154,17 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 		masterGainNode.gain.linearRampToValueAtTime(volume * 0.9, now + attack);
 
 		const bodyColorBoost = bodyColor === 'soft' ? 0.75 : bodyColor === 'bright' ? 1.25 : 1;
-		const partialLimit = frequency > 500 ? 28 : 32;
-		for (let harmonic = 1; harmonic <= partialLimit; harmonic += 1) {
-			const partialFrequency = frequency * harmonic;
-			if (partialFrequency > audioContext.sampleRate * 0.46) {
+		const partialLimit = safeFrequency > 500 ? 28 : 32;
+		const harmonicCeiling = Math.max(
+			1,
+			Math.floor(MAX_PLAYABLE_FREQUENCY / Math.max(safeFrequency, 1))
+		);
+		for (let harmonic = 1; harmonic <= Math.min(partialLimit, harmonicCeiling); harmonic += 1) {
+			const partialFrequency = safeFrequency * harmonic;
+			if (
+				partialFrequency > MAX_PLAYABLE_FREQUENCY ||
+				partialFrequency > audioContext.sampleRate * 0.46
+			) {
 				break;
 			}
 
@@ -193,6 +206,7 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 
 		const update = (nextFrequency: number, nextState: Partial<BowedStringVoiceState>) => {
 			if (!audioContext) return;
+			const playableFrequency = clampFrequencyToPlayable(nextFrequency);
 			const nowTime = audioContext.currentTime;
 			const pressure = clamp(nextState.bowPressure ?? bowPressure, 0, 1);
 			const position = clamp(nextState.bowPosition ?? bowPosition, 0, 1);
@@ -202,15 +216,18 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 			const modWidth = 1 + vibratoDepthValue * 12;
 
 			partials.forEach(({ osc, gain, harmonic }) => {
-				const targetPartial = nextFrequency * harmonic;
+				const targetPartial = playableFrequency * harmonic;
 				const partialAmplitude =
 					getHarmonicProfile(harmonic, pressure, position, speed) *
 					(0.55 + 0.45 / Math.max(1, harmonic * 0.7)) *
 					bodyColorBoost;
 				const vibratoAmount = Math.sin(
-					((nextFrequency * harmonic) / 440) * Math.PI * 2 * rate * (nowTime / 60)
+					((playableFrequency * harmonic) / 440) * Math.PI * 2 * rate * (nowTime / 60)
 				);
-				const finalFrequency = targetPartial * (1 + vibratoAmount * vibratoDepthValue * modWidth);
+				const finalFrequency = Math.min(
+					targetPartial * (1 + vibratoAmount * vibratoDepthValue * modWidth),
+					MAX_PLAYABLE_FREQUENCY
+				);
 				osc.frequency.cancelScheduledValues(nowTime);
 				osc.frequency.setValueAtTime(osc.frequency.value || finalFrequency, nowTime);
 				osc.frequency.linearRampToValueAtTime(finalFrequency, nowTime + 0.08);
@@ -295,10 +312,11 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 		newFrequency: number,
 		nextState: Partial<BowedStringVoiceState>
 	) {
+		const safeFrequency = clampFrequencyToPlayable(newFrequency);
 		const now = audioContext?.currentTime ?? 0;
-		voice.update(newFrequency, nextState);
+		voice.update(safeFrequency, nextState);
 		if (continuousVoice === voice) {
-			lastActiveFrequency = newFrequency;
+			lastActiveFrequency = safeFrequency;
 			const pressure = clamp(nextState.bowPressure ?? bowPressure, 0, 1);
 			const position = clamp(nextState.bowPosition ?? bowPosition, 0, 1);
 			const speed = clamp(nextState.bowSpeed ?? bowSpeed, 0, 1);
@@ -313,6 +331,7 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 	 * Play a single exact frequency continuously until stopped.
 	 */
 	async function playFrequency(frequency: number) {
+		const playableFrequency = clampFrequencyToPlayable(frequency);
 		try {
 			await ensureAudioContext();
 		} catch (error) {
@@ -325,9 +344,9 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 			return;
 		}
 
-		lastActiveFrequency = frequency;
+		lastActiveFrequency = playableFrequency;
 		const state: Partial<BowedStringVoiceState> = {
-			frequency,
+			frequency: playableFrequency,
 			bowPressure,
 			bowPosition,
 			bowSpeed,
@@ -338,11 +357,11 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 		};
 
 		if (!continuousVoice) {
-			continuousVoice = createAdditiveVoice(frequency, state, 'continuous');
+			continuousVoice = createAdditiveVoice(playableFrequency, state, 'continuous');
 			return;
 		}
 
-		setVoiceState(continuousVoice, frequency, state);
+		setVoiceState(continuousVoice, playableFrequency, state);
 	}
 
 	/**
@@ -374,7 +393,7 @@ export function createSynth(options: SynthOptions = {}): SynthVoice {
 		}
 
 		const midi = writtenMidi + transpositionSemitones;
-		const frequency = frequencyFromNoteNumber(midi, a4);
+		const frequency = clampFrequencyToPlayable(frequencyFromNoteNumber(midi, a4));
 		const sixteenthMs = 60000 / tempoBPM / 4;
 		const durationMs = item.length * sixteenthMs;
 		const durationSec = durationMs / 1000;

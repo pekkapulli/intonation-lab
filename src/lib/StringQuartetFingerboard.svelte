@@ -7,6 +7,7 @@
 		getInstrumentTimbreProfile,
 		getStringFrequencyAtFret,
 		getVisibleFretRatio,
+		normalizeInstrumentId,
 		type FingerboardPosition,
 		type Instrument
 	} from './string-quartet';
@@ -32,6 +33,7 @@
 	} = $props();
 
 	const synth = createSynth({ waveform: 'sine', volume: 0.3, reverbMix: 0 });
+	const resolvedInstrumentId = $derived(normalizeInstrumentId(instrumentId || instrument.id));
 	let lastStopAllSignal = $state(0);
 	let dragActive = $state(false);
 	let dragPointerId: number | null = $state(null);
@@ -54,7 +56,7 @@
 		Math.max(...layout.flatMap((row) => row.map((position) => position.fretIndex)), 0)
 	);
 	let otherInstrumentHarmonics = $derived(
-		getInstrumentHarmonicOverlays(activeFrequencyByInstrument ?? {}, 12, instrumentId)
+		getInstrumentHarmonicOverlays(activeFrequencyByInstrument ?? {}, 12, resolvedInstrumentId)
 	);
 	let boardWidth = $derived(Math.max(containerWidth, 1));
 	$effect(() => {
@@ -76,7 +78,7 @@
 			const updatedFrequency = rawFrequency / Math.max(1 - activePositionRatio, 0.00001);
 			if (currentFrequency !== updatedFrequency) {
 				currentFrequency = updatedFrequency;
-				onFrequencyChange?.(instrumentId, updatedFrequency);
+				onFrequencyChange?.(resolvedInstrumentId, updatedFrequency);
 				synth.playFrequency(updatedFrequency);
 			}
 		}
@@ -158,7 +160,7 @@
 		synth.stopAll();
 		currentFrequency = null;
 		activeStringIndex = null;
-		onFrequencyChange?.(instrumentId, null);
+		onFrequencyChange?.(resolvedInstrumentId, null);
 	}
 
 	function updatePointerFromEvent(event: PointerEvent) {
@@ -179,7 +181,7 @@
 		activeStringIndex = pointer.stringIndex;
 		activePositionRatio = pointer.positionRatio;
 		currentFrequency = pointer.frequency;
-		onFrequencyChange?.(instrumentId, pointer.frequency);
+		onFrequencyChange?.(resolvedInstrumentId, pointer.frequency);
 		synth.playFrequency(pointer.frequency);
 	}
 
@@ -336,6 +338,7 @@
 	<div class="spectrum-shell" class:compact={compactLayout}>
 		<FrequencySpectrum
 			frequency={currentFrequency}
+			{a4}
 			bowPressure={clamp(0.25 + (activePositionRatio ?? 0) * 0.8, 0, 1)}
 			bowPosition={activePositionRatio ?? 0}
 			bowSpeed={0.55}

@@ -65,16 +65,41 @@ export const STRING_QUARTET_FINGERBOARD_LENGTHS: Record<string, number> = {
 	Cello: 1
 };
 
+export function normalizeInstrumentId(identifier: string): string {
+	const trimmed = (identifier ?? '').trim();
+	if (!trimmed) {
+		return '';
+	}
+
+	const normalized = trimmed
+		.toLowerCase()
+		.replace(/['’]/g, '')
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.replace(/-+/g, '-');
+
+	const aliases: Record<string, string> = {
+		'violin-i': 'violin-i',
+		'violin-1': 'violin-i',
+		'violin-ii': 'violin-ii',
+		'violin-2': 'violin-ii',
+		viola: 'viola',
+		cello: 'cello'
+	};
+
+	return aliases[normalized] ?? normalized;
+}
+
 export function getInstrumentTimbreProfile(instrumentNameOrId: string): {
 	lowPassCutoff: number;
 	bodyColor: 'soft' | 'normal' | 'bright';
 } {
-	const normalized = instrumentNameOrId.toLowerCase();
+	const normalized = normalizeInstrumentId(instrumentNameOrId);
 
-	if (normalized.includes('cello')) {
+	if (normalized === 'cello') {
 		return { lowPassCutoff: 5200, bodyColor: 'soft' };
 	}
-	if (normalized.includes('viola')) {
+	if (normalized === 'viola') {
 		return { lowPassCutoff: 8200, bodyColor: 'normal' };
 	}
 
@@ -287,11 +312,20 @@ export function getInstrumentHarmonicOverlays(
 	maxHarmonic = 12,
 	excludeInstrumentId?: string
 ): HarmonicOverlayEntry[] {
-	return Object.entries(activeFrequencyByInstrument).flatMap(([instrumentId, value]) => {
-		if (instrumentId === excludeInstrumentId) {
-			return [];
+	const normalizedExcludeInstrumentId = normalizeInstrumentId(excludeInstrumentId ?? '');
+	const normalizedActiveFrequencies = Object.entries(activeFrequencyByInstrument).reduce<
+		Record<string, number>
+	>((acc, [instrumentKey, value]) => {
+		const instrumentId = normalizeInstrumentId(instrumentKey);
+		if (!instrumentId || typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+			return acc;
 		}
-		if (typeof value !== 'number' || value <= 0) {
+		acc[instrumentId] = value;
+		return acc;
+	}, {});
+
+	return Object.entries(normalizedActiveFrequencies).flatMap(([instrumentId, value]) => {
+		if (instrumentId === normalizedExcludeInstrumentId) {
 			return [];
 		}
 
@@ -324,9 +358,6 @@ export function isValidQuartetSetup(instruments: Instrument[]): boolean {
 export function getStringRingMapping(): Record<string, string[]> {
 	const instruments = getStringQuartetInstruments();
 	return Object.fromEntries(
-		instruments.map((instrument) => [
-			instrument.name,
-			instrument.strings.map((pitch) => pitch.note)
-		])
+		instruments.map((instrument) => [instrument.id, instrument.strings.map((pitch) => pitch.note)])
 	);
 }

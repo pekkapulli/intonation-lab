@@ -1,7 +1,11 @@
 <script lang="ts">
 	import StringQuartetFingerboard from '$lib/StringQuartetFingerboard.svelte';
 	import WelcomeDialog from '$lib/WelcomeDialog.svelte';
-	import { buildFingerboardLayout, getStringQuartetInstruments } from '$lib/string-quartet';
+	import {
+		buildFingerboardLayout,
+		getStringQuartetInstruments,
+		normalizeInstrumentId
+	} from '$lib/string-quartet';
 	import { startAudioEngine } from '$lib/synth/audioStart';
 
 	const fretCount = 19;
@@ -25,7 +29,7 @@
 	}));
 
 	function handleInstrumentFrequencyChange(instrumentId: string, frequency: number | null) {
-		activeFrequencies[instrumentId] = frequency;
+		activeFrequencies[normalizeInstrumentId(instrumentId)] = frequency;
 	}
 
 	async function handleWelcomeStart() {
@@ -96,7 +100,7 @@
 	</header>
 
 	<div class="instrument-stack" class:compact={isCompactLayout}>
-		{#each instruments as instrument (instrument.name)}
+		{#each instruments as instrument (instrument.id)}
 			<section class="instrument-panel" class:compact={isCompactLayout}>
 				<div class="instrument-body">
 					<StringQuartetFingerboard

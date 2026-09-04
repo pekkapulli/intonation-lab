@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { scaleLinear, scaleLog } from 'd3-scale';
 	import { noteNameFromMidi } from '../string-quartet';
-	import { DEFAULT_A4, frequencyFromNoteNumber } from '../tuner/tune';
+	import { DEFAULT_A4, getClosestNoteFromFrequency } from '../tuner/tune';
 	import { getHarmonicSpectrum } from './useSynth.svelte';
 
 	let {
 		frequency = null,
+		a4 = DEFAULT_A4,
 		bowPressure = 0.45,
 		bowPosition = 0.4,
 		bowSpeed = 0.55,
@@ -19,6 +20,7 @@
 		overlayColor = 'rgba(255, 255, 255, 0.8)'
 	}: {
 		frequency?: number | null;
+		a4?: number;
 		bowPressure?: number;
 		bowPosition?: number;
 		bowSpeed?: number;
@@ -55,11 +57,9 @@
 		if (isEmpty) {
 			return null;
 		}
-		const nearestMidi = Math.round(69 + 12 * Math.log2(safeFrequency / DEFAULT_A4));
-		const nearestFrequency = frequencyFromNoteNumber(nearestMidi, DEFAULT_A4);
-		const cents = Math.round(1200 * Math.log2(safeFrequency / nearestFrequency));
+		const { midi, cents } = getClosestNoteFromFrequency(safeFrequency, a4);
 		return {
-			note: noteNameFromMidi(nearestMidi),
+			note: noteNameFromMidi(midi),
 			cents
 		};
 	});

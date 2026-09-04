@@ -195,7 +195,7 @@ describe('string quartet tunings', () => {
 		expect(instruments[3].fingerboardLengthRatio).toBe(1);
 	});
 
-	it('sends every active instrument to every board without filtering by instrument name', () => {
+	it('sends every active instrument to every board using the canonical ids', () => {
 		const activeFrequencies = {
 			'Violin I': 220,
 			'Violin II': 330,
@@ -206,16 +206,30 @@ describe('string quartet tunings', () => {
 		const overlays = getInstrumentHarmonicOverlays(activeFrequencies);
 		const instrumentIds = new Set(overlays.map((entry) => entry.instrumentId));
 
-		expect(instrumentIds).toEqual(new Set(['Violin I', 'Violin II', 'Viola']));
+		expect(instrumentIds).toEqual(new Set(['violin-i', 'violin-ii', 'viola']));
 		expect(
-			overlays.some((entry) => entry.instrumentId === 'Violin I' && entry.harmonic === 1)
+			overlays.some((entry) => entry.instrumentId === 'violin-i' && entry.harmonic === 1)
 		).toBe(true);
 		expect(
-			overlays.some((entry) => entry.instrumentId === 'Violin II' && entry.harmonic === 2)
+			overlays.some((entry) => entry.instrumentId === 'violin-ii' && entry.harmonic === 2)
 		).toBe(true);
-		expect(overlays.some((entry) => entry.instrumentId === 'Viola' && entry.harmonic === 3)).toBe(
+		expect(overlays.some((entry) => entry.instrumentId === 'viola' && entry.harmonic === 3)).toBe(
 			true
 		);
+	});
+
+	it('normalizes mixed name and id keys to a single canonical instrument id', () => {
+		const activeFrequencies = {
+			'Violin I': 220,
+			'violin-i': 220,
+			Viola: 440,
+			Cello: null
+		};
+
+		const overlays = getInstrumentHarmonicOverlays(activeFrequencies, 4);
+		const instrumentIds = new Set(overlays.map((entry) => entry.instrumentId));
+
+		expect(instrumentIds).toEqual(new Set(['violin-i', 'viola']));
 	});
 
 	it('excludes the current instrument from overlay bars when using instrument ids', () => {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { getClosestNoteFromFrequency } from '../tuner/tune';
 import { getHarmonicProfile, getHarmonicSpectrum } from './useSynth.svelte';
+
+const MAX_PLAYABLE_FREQUENCY = 20000;
 
 describe('bowed-string additive model', () => {
 	it('makes higher pressure and bridge position brighter', () => {
@@ -33,5 +36,17 @@ describe('bowed-string additive model', () => {
 		expect(spectrum.map((entry) => entry.harmonic)).toEqual([1, 2, 3, 4]);
 		expect(spectrum.map((entry) => entry.frequency)).toEqual([220, 440, 660, 880]);
 		expect(spectrum.every((entry) => entry.amplitude >= 0)).toBe(true);
+	});
+
+	it('uses the selected A4 reference when naming the nearest note', () => {
+		expect(getClosestNoteFromFrequency(415, 415).midi).toBe(69);
+		expect(getClosestNoteFromFrequency(415, 442).midi).toBe(68);
+	});
+
+	it('never includes harmonic frequencies above 20 kHz', () => {
+		const spectrum = getHarmonicSpectrum(8000, 0.5, 0.4, 0.6, 12);
+
+		expect(spectrum.every((entry) => entry.frequency <= MAX_PLAYABLE_FREQUENCY)).toBe(true);
+		expect(spectrum.some((entry) => entry.frequency === MAX_PLAYABLE_FREQUENCY)).toBe(true);
 	});
 });
