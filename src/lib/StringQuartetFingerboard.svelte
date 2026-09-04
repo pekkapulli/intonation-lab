@@ -353,8 +353,8 @@
 	}
 
 	.visual-layout.compact {
-		flex-direction: row;
-		align-items: stretch;
+		flex-direction: row-reverse;
+		align-items: flex-start;
 	}
 
 	.board-shell {
@@ -384,7 +384,7 @@
 		display: flex;
 		align-items: stretch;
 		justify-content: center;
-		max-width: 50%;
+		max-width: 30%;
 		padding: 0;
 		margin: 0;
 	}
@@ -395,7 +395,6 @@
 		max-width: 50%;
 		height: min(100%, 240px);
 		max-height: 240px;
-		align-self: center;
 		padding-top: 1rem;
 	}
 

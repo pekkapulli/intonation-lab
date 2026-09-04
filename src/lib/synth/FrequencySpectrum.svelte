@@ -200,7 +200,7 @@
 				height={entry.height}
 				rx={2}
 				fill={`url(#${gradientId})`}
-				opacity={0.5 + entry.amplitude * 0.3}
+				opacity={0.5}
 			/>
 			{#if i < 4}
 				{@const labelY = Math.max(entry.y - 2, padding.top + 4)}
@@ -217,9 +217,6 @@
 		width: 100%;
 		height: 100%;
 		background: rgba(15, 23, 42);
-		border: 1px solid rgba(125, 211, 252, 0.35);
-		border-radius: 0.8rem;
-		box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
 		padding: 0.2rem;
 		box-sizing: border-box;
 	}
